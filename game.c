@@ -1,49 +1,36 @@
 #include "game.h"
 
-void viewGame(int * PORT)
+DWORD WINAPI viewGame(void * connectionSocket)
 {
 	//Creating server socket
-	SOCKET serverSocket;
-	struct sockaddr_in sa;
-
-	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-	memset((void*)(&sa), 0, sizeof(sa));
-	sa.sin_family = AF_INET;
-	sa.sin_port = htons(*PORT);
-	sa.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(serverSocket, (struct sockaddr FAR*) & sa, sizeof(sa)) != SOCKET_ERROR)
-	{
-		listen(serverSocket, 1);
-		SOCKET connectionSocket;
-		struct sockaddr_in sc;
-		int lenc;
-		lenc = sizeof(sc);
-		//Waiting for connection
-		connectionSocket = accept(serverSocket, (struct sockaddr FAR*) & sc, &lenc);
-
-		//Starting server Loop
-		viewGameBoard(&connectionSocket);
-
-		//End server job
-		closesocket(connectionSocket);
-	}
+	SOCKET * connectionToServer = (SOCKET *) connectionSocket;
+	viewGameBoard(connectionToServer);
 
 	ExitThread(0);
 }
 
 void viewGameBoard(SOCKET* connectionSocket)
 {
-	char buf[80]; //buffor to read msgs
+	char buf[BOARD_SIZE]; //buffor to read msgs
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT) {
-		if (recv(*connectionSocket, buf, 80, 0) > 0)
+	while (WaitForSingleObject(ghPlayerQuitEvent, 1) == WAIT_TIMEOUT) {
+		if (recv(*connectionSocket, buf, BOARD_SIZE, 0) > 0)
 		{
 			if (strcmp(buf, "KONIEC") == 0)
 			{
-				//Stop loop
+				SetEvent(ghGameEndedEvent);
 				return;
 			}
-			printf("\nGuest: %s\n", buf);
+			gotoxy(1, 1);
+			printf("Player received information from server: %s\n", buf);
 		}
 	}
+}
+
+void gotoxy(int x, int y)
+{
+	COORD c;
+	c.X = x - 1;
+	c.Y = y - 1;
+	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), c);
 }

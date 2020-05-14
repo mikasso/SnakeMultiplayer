@@ -3,7 +3,7 @@
 int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	HANDLE sendClientInputHandle,  gameViewerHandle;
 
-	//Prepare client socket with ip to connect and port from command line
+	//Prepare client socket with ip and port 
 	SOCKET clientSocket;
 	struct sockaddr_in sa;
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -11,7 +11,8 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(*PORT);
 	sa.sin_addr.s_addr = inet_addr(ADRESS);
-
+	ghPlayerQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	ghGameEndedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	int attemp = 0;
 	while (attempToConnect(&clientSocket, &sa, ADRESS, PORT) == FALSE)
 	{
@@ -45,7 +46,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 		NULL, // atrybuty bezpieczenstwa
 		0,	  // inicjalna wielkosc stosu
 		viewGame, // funkcja watku
-		PORT,// dane dla funkcji watku
+		&clientSocket,// dane dla funkcji watku
 		0, // flagi utworzenia
 		&gameViewerThreadID);
 
@@ -61,8 +62,13 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 
 	WaitForSingleObject(gameViewerHandle, INFINITE);
 	WaitForSingleObject(sendClientInputHandle, INFINITE);
+
+	if (isHost)
+		SetEvent(ghStopEvent);
+
 	CloseHandle(gameViewerHandle);
 	CloseHandle(sendClientInputHandle);
+	closesocket(clientSocket);
 
 	return 0;
 }
@@ -84,21 +90,20 @@ _Bool attempToConnect(SOCKET* clientSocket, struct sockaddr_in* sa, char* ADRESS
 	return TRUE;
 }
 
-
-void sendClientInput(SOCKET* clientSocket)
+DWORD WINAPI sendClientInput(void * clientSocket)
 {
-	char buf[80];
-	int dlug;
+	SOCKET* socket = clientSocket;
+	char c;
 	//If event was called than stop sending messages.
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT)
+	while (WaitForSingleObject(ghGameEndedEvent, 1) == WAIT_TIMEOUT)
 	{
-		fgets(buf, 80, stdin);
-		dlug = strlen(buf);
-		buf[dlug - 1] = '\0';
-		send(*clientSocket, buf, dlug, 0);
-		if (strcmp(buf, "KONIEC") == 0)
+		c = _getch();
+		send(*socket, &c, sizeof(c), 0);
+		if (c == QUIT_KEY)
 		{
+			SetEvent(ghPlayerQuitEvent);
 			break;
 		}
 	}
+	return 0;
 }
