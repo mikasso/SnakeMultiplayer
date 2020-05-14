@@ -13,10 +13,42 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Pliki źródłowe\server">
+      <UniqueIdentifier>{340cddc5-8f06-4f02-a817-8b5e16651b29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\game">
+      <UniqueIdentifier>{b95ebd4b-1141-4bb8-884f-89b1cb2dcbb5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pliki źródłowe\player">
+      <UniqueIdentifier>{2444ce1a-af70-4303-9df8-15e46ce251a5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
       <Filter>Pliki źródłowe</Filter>
     </ClCompile>
+    <ClCompile Include="server.c">
+      <Filter>Pliki źródłowe\server</Filter>
+    </ClCompile>
+    <ClCompile Include="player.c">
+      <Filter>Pliki źródłowe\player</Filter>
+    </ClCompile>
+    <ClCompile Include="game.c">
+      <Filter>Pliki źródłowe\game</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="server.h">
+      <Filter>Pliki źródłowe\server</Filter>
+    </ClInclude>
+    <ClInclude Include="player.h">
+      <Filter>Pliki źródłowe\player</Filter>
+    </ClInclude>
+    <ClInclude Include="game.h">
+      <Filter>Pliki źródłowe\game</Filter>
+    </ClInclude>
+    <ClInclude Include="IncludingList.h">
+      <Filter>Pliki źródłowe</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
