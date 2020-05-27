@@ -9,7 +9,7 @@ HANDLE ghStopEvent;
 int main(int argc, char* argv[])
 {
 	//Read data from command line
-	char* ADRESS = "127.0.0.1";
+	char * ADRESS = "46.238.242.100";
 	int PORT = 2137;
 	_Bool isHost = TRUE;
 	//Start win api service	
@@ -33,10 +33,10 @@ int main(int argc, char* argv[])
 		
 	}
 
-
 	SetEvent(ghStopEvent);
 	WaitForSingleObject(serverThread, INFINITE);
-	CloseHandle(serverThread);
+	if(isHost)
+		CloseHandle(serverThread);
 	CloseHandle(ghStopEvent);
 
 	return 0;

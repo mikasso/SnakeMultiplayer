@@ -2,7 +2,8 @@
 
 int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	HANDLE sendClientInputHandle,  gameViewerHandle;
-
+	ghPlayerQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	ghGameEndedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	//Prepare client socket with ip and port 
 	SOCKET clientSocket;
 	struct sockaddr_in sa;
@@ -11,11 +12,18 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(*PORT);
 	sa.sin_addr.s_addr = inet_addr(ADRESS);
-	ghPlayerQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	ghGameEndedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+
 	int attemp = 0;
-	while (attempToConnect(&clientSocket, &sa, ADRESS, PORT) == FALSE)
+	int result = SOCKET_ERROR;
+	while (result == SOCKET_ERROR)
 	{
+		printf("Attemp to connect server.\nIP: %s \nPort: %d\n", ADRESS, *PORT);
+		result = connect(clientSocket, (struct sockaddr FAR*) & sa, sizeof(sa));
+		if (result == SOCKET_ERROR)
+		{
+			printf("Connection error!\n");
+		}
 		attemp += 1;
 		if (attemp == ATTEMPS_LIMIT)
 		{
@@ -73,22 +81,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	return 0;
 }
 
-_Bool attempToConnect(SOCKET* clientSocket, struct sockaddr_in* sa, char* ADRESS, int* PORT)
-{
-	printf("Attemp to connect server.\nIP: %s \nPort: %d\n", ADRESS, *PORT);
-	int result;
-	{
-		result = connect(*clientSocket, (struct sockaddr FAR*) sa, sizeof(*sa));
-		if (result == SOCKET_ERROR)
-		{
-			printf("Connection error!\n");
-			return FALSE;
-		}
-	} 
-	printf("\n\nConnected succesfully!\n");
-	printf("---------------------------------------------\n\n");
-	return TRUE;
-}
+
 
 DWORD WINAPI sendClientInput(void * clientSocket)
 {

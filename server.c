@@ -40,8 +40,8 @@ DWORD WINAPI serverThread(int* PORT)
 	HANDLE sendingDataThreads[MAX_PLAYERS];
 	struct sockaddr_in clientSockAddr[MAX_PLAYERS];
 	PlayerData* playerData[MAX_PLAYERS];
-
-	if (bind(serverSocket, (struct sockaddr FAR*) & sa, sizeof(sa)) != SOCKET_ERROR)
+	int result = bind(serverSocket, (struct sockaddr FAR*) & sa, sizeof(sa));
+	if (result != SOCKET_ERROR)
 	{
 		listen(serverSocket, MAX_PLAYERS);			//Set how many connections [players] can be at one time
 		int lenc;
@@ -71,7 +71,7 @@ DWORD WINAPI serverThread(int* PORT)
 				return -(i + 1);
 			}
 
-			clientSockAddr[i].sin_port = htons(2000);
+		
 
 			sendingDataThreads[i] = CreateThread(
 				NULL, // atrybuty bezpieczenstwa
@@ -82,7 +82,11 @@ DWORD WINAPI serverThread(int* PORT)
 				& threadID);
 		}		
 	}
-	Sleep(2000);
+	else
+	{
+		printf("Socket error %d \n" ,result);
+		Sleep(1000);
+	}
 	system("CLS");
 	WaitForMultipleObjects(playersNumber, sendingDataThreads, 1, INFINITE);
 	WaitForMultipleObjects(playersNumber, receivingDataThreads, 1, INFINITE);
@@ -94,7 +98,6 @@ DWORD WINAPI serverThread(int* PORT)
 		CloseHandle(receivingDataThreads[i]);
 		closesocket(*playerData[i]->socket);
 		free(playerData[i]);
-
 	}
 	SetEvent(ghStopEvent);
 	printf("Turning off server.");
@@ -152,4 +155,5 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 			break;
 		}
 	}
+	return 0;
 }
