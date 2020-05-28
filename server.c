@@ -1,10 +1,9 @@
 #include "server.h"
-
-char * gMove;
+#define WAIT_TO_START_TIME 0
 
 void displayStartInfo() {
 	system("CLS");
-	for (int i = 3; i > 0; i--)
+	for (int i = WAIT_TO_START_TIME; i > 0; i--)
 	{
 		printf("Game will start in %ds\n",i);
 		Sleep(1000);
@@ -24,18 +23,10 @@ HANDLE * startServer(int * PORT, int maxPlayers) {
 	serverData->addr_in.sin_addr.s_addr = htonl(INADDR_ANY);
 	serverData->maxPlayers = maxPlayers;
 	//Create the server in a new therad
-	DWORD serverThreadID;
-	* thread = CreateThread(
-		NULL, // atrybuty bezpieczenstwa
-		0,	  // inicjalna wielkosc stosu
-		serverThread, // funkcja watku
-		(void *)serverData,// dane dla funkcji watku
-		0, // flagi utworzenia
-		&serverThreadID);
+	runThread(thread, serverThread, serverData);
 
 	if (*thread == INVALID_HANDLE_VALUE)
 	{
-		printf("Server thread can not have been created! id =  %x \n", serverThreadID);
 		free(&serverData->addr_in);
 		free(&serverData->socket);
 		free(serverData);
@@ -80,6 +71,12 @@ DWORD WINAPI serverThread(void * data)
 	//Start all player threads
 	HANDLE * sendingDataThreads = startSendingThreads(players, connected);
 	HANDLE * receivingDataThreads = startReceivingThreads(players, connected);
+	/*
+		Teraz tak w tym miejscu powinno byc odpalenie watku zawierajacego petle gry
+		Watek ten powinien w magiczny sposob odczytywac dane ktore sa odbierane w watkach 
+		receiveDataFromPlayer oraz udostepniac je watka sendingDataToPlayer
+	*/
+
 	//Wait them to finish
 	WaitForMultipleObjects(connected, sendingDataThreads, 1, INFINITE);
 	WaitForMultipleObjects(connected, receivingDataThreads, 1, INFINITE);
@@ -89,9 +86,6 @@ DWORD WINAPI serverThread(void * data)
 	{
 		freePlayerServerInfo(players[i]);
 	}
-	free(sendingDataThreads);
-	free(receivingDataThreads);
-	free(serverData);
 	printf("Turning off server.");
 	return 0;
 }
@@ -108,21 +102,14 @@ HANDLE * startReceivingThreads(PlayerServerInfo ** players, int connected)
 {
 	HANDLE * threads = malloc(sizeof(HANDLE) * connected);
 	for (int i = 0; i < connected; i++) {
-		DWORD threadID;
-		threads[i] = CreateThread(
-			NULL, // atrybuty bezpieczenstwa
-			0,	  // inicjalna wielkosc stosu
-			receiveDataFromPlayer, // funkcja watku
-			players[i],// dane dla funkcji watku
-			0, // flagi utworzenia
-			&threadID);
-		//przypisanie do struktury gracza watku odpowiedzialnego za otrzymywanie danych
-		players[i]->receivingThread = &threads[i];
+		runThread(&threads[i], receiveDataFromPlayer, players[i]);
 		if (threads[i] == INVALID_HANDLE_VALUE)
 		{
-			printf("receiveDataFromPlayer thread can not have been created! id =  %x \n", threadID);
+			printf("receiveDataFromPlayer thread can not have been created! \n");
 			return threads;
 		}
+		//przypisanie do struktury gracza watku odpowiedzialnego za otrzymywanie danych
+		players[i]->receivingThread = &threads[i];
 	}
 	return threads;
 }
@@ -131,21 +118,14 @@ HANDLE* startSendingThreads(PlayerServerInfo** players, int connected)
 {
 	HANDLE* threads = malloc(sizeof(HANDLE) * connected);
 	for (int i = 0; i < connected; i++) {
-		DWORD threadID;
-		threads[i] = CreateThread(
-			NULL, // atrybuty bezpieczenstwa
-			0,	  // inicjalna wielkosc stosu
-			sendingDataToPlayer, // funkcja watku
-			players[i],// dane dla funkcji watku
-			0, // flagi utworzenia
-			&threadID);
-		//przypisanie do struktury gracza watku odpowiedzialnego za otrzymywanie danych
-		players[i]->sendingThread = &threads[i];
+		runThread(&threads[i], sendingDataToPlayer, players[i]);
 		if (threads[i] == INVALID_HANDLE_VALUE)
 		{
-			printf("sendingDataToPlayer thread can not have been created! id =  %x \n", threadID);
+			printf("sendingDataToPlayer thread can not have been created! \n");
 			return threads;
 		}
+		//przypisanie do struktury gracza watku odpowiedzialnego za wysylanie danych
+		players[i]->sendingThread = &threads[i];
 	}
 	return threads;
 }
@@ -167,7 +147,7 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 			//Redirect recieved data to gameLoop TODO
 			gotoxy(1, 3);
 			printf("server received from player ID = %d key %c", playerData->ID, c);
-			gMove[playerData->ID] = c;
+			//Jakos przeslijcie te dane to watku gry
 		}
 	}
 	return 0;

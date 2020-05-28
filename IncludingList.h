@@ -10,3 +10,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
+// tutaj wrzucajcie rzeczy globalne miedzy modu³ami a nastepnie 
+// W plikach .h z przedrostkiem extern ponowne definicje ich
+HANDLE ghGameEndedEvent;
+/*
+	Event sygnalizujacy zakonczenie gry
+*/
+HANDLE ghPlayerQuitEvent;
+/*
+	Flaga ktora podonosimy gdy gracz wscinie QUIT_KET
+	co konczy jego gre i polaczenie z serwerem
+*/
+HANDLE ghStopEvent;
+/*
+globalna flaga, ktora jak zostanie podniesiona powinna konczyc
+prace serwera, watkow ktore w ramach niego dzialaja oraz watki gracza
+*/

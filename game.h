@@ -4,9 +4,10 @@
 #define BOARD_SIZE 30*20
 
 
+extern HANDLE ghGameEndedEvent;
 extern HANDLE ghStopEvent;
 extern HANDLE ghPlayerQuitEvent;
-HANDLE ghGameEndedEvent;
+
 DWORD WINAPI viewGame(void * PORT);
 void viewGameBoard(SOCKET* connectionSocket);
 void gotoxy(int x, int y);

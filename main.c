@@ -4,14 +4,16 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-HANDLE ghStopEvent;
+extern HANDLE ghGameEndedEvent;
+extern HANDLE ghStopEvent;
+extern HANDLE ghPlayerQuitEvent;
 
 int main(int argc, char* argv[])
 {
 
 	//Read data from command line
 	char * ADRESS = "192.168.1.2";
-	int maxPlayers = 2;
+	int maxPlayers = 1;
 	int PORT = 5037;
 	_Bool isHost = TRUE;
 	//Start win api service	
@@ -21,24 +23,34 @@ int main(int argc, char* argv[])
 	WSAStartup(wersja, &wsas);
 	ghStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
+	HANDLE server = NULL;
+	ServerBasicData * serverData = NULL;
 	if (isHost){
-		//Start server in a new thread
-		HANDLE * serverThread = startServer(&PORT, maxPlayers);
+		//Creating server init information
+		serverData = malloc(sizeof(ServerBasicData));
+		//Filing serverData structure
+		serverData->socket = socket(AF_INET, SOCK_STREAM, 0);
+		memset((void*)(&serverData->addr_in), 0, sizeof(serverData->addr_in));
+		serverData->addr_in.sin_family = AF_INET;
+		serverData->addr_in.sin_port = htons(PORT);
+		serverData->addr_in.sin_addr.s_addr = htonl(INADDR_ANY);
+		serverData->maxPlayers = maxPlayers;
+		//Create the server in a new therad
+		runThread(&server, serverThread, serverData);
 	}
 
 	//Get server data from input scanf(..)
 	//TODO
 	if (startPlayerThreads(&PORT, ADRESS, isHost) < 0)
 	{
-		
+		printf("Client cannot reach server! \n");
 	}
 	SetEvent(ghStopEvent);
-
 	if (isHost)
 	{
-		WaitForSingleObject(serverThread, INFINITE);
-		CloseHandle(*serverThread);
-		free(serverThread);
+		free(serverData);
+		printf("\n%d",WaitForSingleObject(server, INFINITE));
+		CloseHandle(server);
 	}
 	CloseHandle(ghStopEvent);
 	return 0;
