@@ -8,9 +8,11 @@ HANDLE ghStopEvent;
 
 int main(int argc, char* argv[])
 {
+
 	//Read data from command line
-	char * ADRESS = "46.238.242.100";
-	int PORT = 2137;
+	char * ADRESS = "192.168.1.2";
+	int maxPlayers = 2;
+	int PORT = 5037;
 	_Bool isHost = TRUE;
 	//Start win api service	
 	WSADATA wsas;
@@ -19,26 +21,26 @@ int main(int argc, char* argv[])
 	WSAStartup(wersja, &wsas);
 	ghStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	if (isHost)
+	if (isHost){
 		//Start server in a new thread
-	{
-		HANDLE serverThread;
-		startServer(&serverThread, &PORT);
+		HANDLE * serverThread = startServer(&PORT, maxPlayers);
 	}
-	//Get server data to connect with it
-	//TODO
 
+	//Get server data from input scanf(..)
+	//TODO
 	if (startPlayerThreads(&PORT, ADRESS, isHost) < 0)
 	{
 		
 	}
-
 	SetEvent(ghStopEvent);
-	WaitForSingleObject(serverThread, INFINITE);
-	if(isHost)
-		CloseHandle(serverThread);
-	CloseHandle(ghStopEvent);
 
+	if (isHost)
+	{
+		WaitForSingleObject(serverThread, INFINITE);
+		CloseHandle(*serverThread);
+		free(serverThread);
+	}
+	CloseHandle(ghStopEvent);
 	return 0;
 }
 

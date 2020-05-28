@@ -4,7 +4,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	HANDLE sendClientInputHandle,  gameViewerHandle;
 	ghPlayerQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	ghGameEndedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	//Prepare client socket with ip and port 
+	//Przygotowanie gniazda i struktury adresu
 	SOCKET clientSocket;
 	struct sockaddr_in sa;
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -12,8 +12,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(*PORT);
 	sa.sin_addr.s_addr = inet_addr(ADRESS);
-
-
+	//Polaczenie sie z sewerem
 	int attemp = 0;
 	int result = SOCKET_ERROR;
 	while (result == SOCKET_ERROR)
@@ -22,7 +21,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 		result = connect(clientSocket, (struct sockaddr FAR*) & sa, sizeof(sa));
 		if (result == SOCKET_ERROR)
 		{
-			printf("Connection error!\n");
+			printf("Connection error!\n %d",WSAGetLastError());
 		}
 		attemp += 1;
 		if (attemp == ATTEMPS_LIMIT)
@@ -31,8 +30,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 			return -1;
 		}
 	}
-
-	//Create server in a new therad
+	//Stworzenie watku odpowiedzialnego za pobieranie danych z klawiatury i wysylyania ich 
 	DWORD sendClientInputThreadID;
 	sendClientInputHandle = CreateThread(
 		NULL, // atrybuty bezpieczenstwa
@@ -41,14 +39,13 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 		&clientSocket,// dane dla funkcji watku
 		0, // flagi utworzenia
 		&sendClientInputThreadID);
-
 	if (sendClientInputHandle == INVALID_HANDLE_VALUE)
 	{
 		closesocket(clientSocket);
 		printf("sendClientInputthread can not have been created! id =  %x \n", sendClientInputThreadID);
 		return -2;
 	}
-
+	//Stworzenie watku pobierajacego dane z serwera i wyswietlajacego go
 	DWORD gameViewerThreadID;
 	gameViewerHandle = CreateThread(
 		NULL, // atrybuty bezpieczenstwa
@@ -57,7 +54,6 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 		&clientSocket,// dane dla funkcji watku
 		0, // flagi utworzenia
 		&gameViewerThreadID);
-
 	if (gameViewerHandle == INVALID_HANDLE_VALUE)
 	{
 		SetEvent(ghStopEvent);
@@ -67,7 +63,7 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 		printf("gameViewer thread can not have been created! id =  %x \n", gameViewerThreadID);
 		return -3;
 	}
-
+	//Oczekiwanie na zakonczenie obu watkow
 	WaitForSingleObject(gameViewerHandle, INFINITE);
 	WaitForSingleObject(sendClientInputHandle, INFINITE);
 
@@ -77,7 +73,6 @@ int startPlayerThreads(int* PORT,char * ADRESS, _Bool isHost) {
 	CloseHandle(gameViewerHandle);
 	CloseHandle(sendClientInputHandle);
 	closesocket(clientSocket);
-
 	return 0;
 }
 
@@ -91,12 +86,12 @@ DWORD WINAPI sendClientInput(void * clientSocket)
 	while (WaitForSingleObject(ghGameEndedEvent, 1) == WAIT_TIMEOUT)
 	{
 		c = _getch();
-		send(*socket, &c, sizeof(c), 0);
 		if (c == QUIT_KEY)
 		{
 			SetEvent(ghPlayerQuitEvent);
 			break;
 		}
+		send(*socket, &c, sizeof(c), 0);
 	}
 	return 0;
 }
