@@ -13,7 +13,7 @@ int main(int argc, char* argv[])
 
 	//Read data from command line
 	char * ADRESS = "192.168.1.2";
-	int maxPlayers = 1;
+	int maxPlayers = 2;
 	int PORT = 5037;
 	_Bool isHost = TRUE;
 	//Start win api service	

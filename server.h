@@ -5,7 +5,8 @@
 extern HANDLE ghGameEndedEvent;
 extern HANDLE ghStopEvent;
 extern HANDLE ghPlayerQuitEvent;
-
+#define CONNECTED 1
+#define DISCONNECTED -1
 
 // Player Handling
 struct PlayerData {	//Ta struktura jest do petli w grze
@@ -20,6 +21,7 @@ struct PlayerServerInfo {//Ta natomiast do obslugiwania gracza przez serwer
 	HANDLE * receivingThread;
 	HANDLE * sendingThread;
 	struct sockaddr_in * sockAddr;
+	int status;
 }typedef PlayerServerInfo;
 
 PlayerServerInfo* initPlayerServerInfo();			//Alokuje pamiec na strukture gracze w serwerze

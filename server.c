@@ -54,6 +54,7 @@ DWORD WINAPI serverThread(void * data)
 			//Waiting for connection
 			players[i] = initPlayerServerInfo();
 			players[i]->data->ID = i;
+			players[i]->status = CONNECTED;
 			lenc = sizeof(*players[i]->sockAddr);
 			*players[i]->socket = accept(serverData->socket, (struct sockaddr FAR*) players[i]->sockAddr, &lenc);
 			connected++;
@@ -135,14 +136,18 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 	PlayerServerInfo * playerServerData = (PlayerServerInfo *) data;
 	PlayerData * playerData = playerServerData->data;
 	char c; //buffor to read msgs
+	u_long mode = 1;  // 1 to enable non-blocking socket
+	ioctlsocket(*playerServerData->socket, FIONBIO, &mode);
+	int result = 1 , code;
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT) {
-		if (recv(*playerServerData->socket, &c, sizeof(c), 0) > 0)
+	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && ( WSAGetLastError() == WSAEWOULDBLOCK || result > 0) ) {
+		result = recv(*playerServerData->socket, &c, sizeof(c), 0);
+		if(result > 0)
 		{
 			if (c == QUIT_KEY)
 			{
 				//Stop loop
-				return 0;
+				break;
 			}
 			//Redirect recieved data to gameLoop TODO
 			gotoxy(1, 3);
@@ -150,6 +155,9 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 			//Jakos przeslijcie te dane to watku gry
 		}
 	}
+	gotoxy(1, 20);
+	printf("Player %d disconnected \n", playerData->ID);
+	playerServerData->status = DISCONNECTED;
 	return 0;
 }
 
@@ -161,7 +169,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 	int dlug;
 	char buf[BOARD_SIZE];
 	_Bool ping = 1;
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT)
+	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED)
 	{
 		//Here getting messeges about game status from game thread
 		//TODO
@@ -187,6 +195,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 PlayerServerInfo* initPlayerServerInfo()
 {
 	PlayerServerInfo* info = malloc(sizeof(PlayerServerInfo));
+	info->status = DISCONNECTED;
 	info->socket = malloc(sizeof(SOCKET));
 	info->receivingThread = malloc(sizeof(HANDLE));
 	info->sendingThread = malloc(sizeof(HANDLE));
@@ -198,12 +207,8 @@ PlayerServerInfo* initPlayerServerInfo()
 void freePlayerServerInfo(PlayerServerInfo* info)
 {
 	closesocket(*info->socket);
-	CloseHandle(*info->receivingThread);
-	CloseHandle(*info->sendingThread);
 	free(info->sockAddr);
 	free(info->data);
-	free(info->sendingThread);
-	free(info->receivingThread);
 	free(info->socket);
 	free(info);
 }
