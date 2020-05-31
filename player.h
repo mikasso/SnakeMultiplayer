@@ -1,3 +1,4 @@
+#pragma once
 #include "IncludingList.h"
 #include "game.h"
 #define ATTEMPS_LIMIT 3
@@ -14,3 +15,4 @@ _Bool connectToServer(SOCKET* clientSocket, struct sockaddr_in* sa, int* PORT, c
 
 typedef unsigned long(__stdcall* ThreadFunc)(void*);
 _Bool runThread(HANDLE* handler, ThreadFunc fun, void* data);
+

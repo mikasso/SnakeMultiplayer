@@ -5,6 +5,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <windows.h>
 #include <winsock2.h>
+#pragma once
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <stdio.h>

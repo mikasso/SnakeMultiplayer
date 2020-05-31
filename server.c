@@ -72,6 +72,11 @@ DWORD WINAPI serverThread(void * data)
 	//Start all player threads
 	HANDLE * sendingDataThreads = startSendingThreads(players, connected);
 	HANDLE * receivingDataThreads = startReceivingThreads(players, connected);
+	HANDLE gameLoopThread = NULL;
+	GameData gameData;
+	gameData.players = players;
+	gameData.count = connected;
+	runThread(&gameLoopThread, &gameLoop, &gameData);
 	/*
 		Teraz tak w tym miejscu powinno byc odpalenie watku zawierajacego petle gry
 		Watek ten powinien w magiczny sposob odczytywac dane ktore sa odbierane w watkach 
@@ -79,6 +84,7 @@ DWORD WINAPI serverThread(void * data)
 	*/
 
 	//Wait them to finish
+	WaitForSingleObject(gameLoopThread, INFINITE);
 	WaitForMultipleObjects(connected, sendingDataThreads, 1, INFINITE);
 	WaitForMultipleObjects(connected, receivingDataThreads, 1, INFINITE);
 	//End thread job
@@ -144,14 +150,19 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 		result = recv(*playerServerData->socket, &c, sizeof(c), 0);
 		if(result > 0)
 		{
+			//SYNCHRONIZACJA
+			LOCK(&playerData->playerSemaphore);
+			playerData->lastMove = c;
+			UNLOCK(&playerData->playerSemaphore);
+			//KONIEC
 			if (c == QUIT_KEY)
 			{
 				//Stop loop
 				break;
 			}
 			//Redirect recieved data to gameLoop TODO
-			gotoxy(1, 3);
-			printf("server received from player ID = %d key %c", playerData->ID, c);
+			//gotoxy(1, 3);
+			//printf("server received from player ID = %d key %c", playerData->ID, c);
 			//Jakos przeslijcie te dane to watku gry
 		}
 	}
@@ -171,23 +182,20 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 	_Bool ping = 1;
 	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED)
 	{
-		//Here getting messeges about game status from game thread
-		//TODO
+		Sleep(100);
+		//SYNCHRONIZACJA
+		LOCK(&ghBoardSemaphore);
+		if (TRUE)	
+			memcpy(buf, BOARD, BOARD_SIZE);
+		UNLOCK(&ghBoardSemaphore);
+		//KONIEC
 
-		//Send data
-		Sleep(1000);
-		if(ping)
-			strcpy_s(buf,5, "ping");
-		else
-			strcpy_s(buf,5, "pong");
-		ping = !ping;
-		dlug = strlen(buf);
-		buf[dlug] = '\0';
-		send(*connectionToPlayer, buf, dlug + 1, 0);
-		if (strcmp(buf, "KONIEC") == 0)
-		{
-			break;
-		}
+			send(*connectionToPlayer, buf, BOARD_SIZE, 0);
+			if (strcmp(buf, "KONIEC") == 0)
+			{
+				break;
+			}
+	
 	}
 	return 0;
 }
@@ -200,6 +208,7 @@ PlayerServerInfo* initPlayerServerInfo()
 	info->receivingThread = malloc(sizeof(HANDLE));
 	info->sendingThread = malloc(sizeof(HANDLE));
 	info->data = malloc(sizeof(PlayerData));
+	BINARY_SEMAPHORE(&info->data->playerSemaphore);
 	info->sockAddr = malloc(sizeof(struct sockaddr_in));
 	return info;
 }
@@ -208,6 +217,7 @@ void freePlayerServerInfo(PlayerServerInfo* info)
 {
 	closesocket(*info->socket);
 	free(info->sockAddr);
+	CloseHandle(info->data->playerSemaphore);
 	free(info->data);
 	free(info->socket);
 	free(info);
