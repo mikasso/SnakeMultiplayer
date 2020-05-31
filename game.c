@@ -1,20 +1,42 @@
 #include "game.h"
 
-DWORD WINAPI viewGame(void * connectionSocket)
-{
-	//Creating server socket
-	SOCKET * connectionToServer = (SOCKET *) connectionSocket;
-	viewGameBoard(connectionToServer);
 
-	ExitThread(0);
+PlayerShowData ** getNamedPlayers(char * nicks,int * count)
+{
+	*count = (int) *nicks;
+	int c = *count;
+	PlayerShowData** players = malloc(sizeof(PlayerShowData*) * c);
+	char* from = &nicks[4];
+	int start = 0,end = 0;
+	for (int i = 0; i < c; i++)
+	{
+		players[i] = malloc(sizeof(PlayerShowData));
+		while (from[end] != '\0')
+		{
+			end++;
+		}
+		end++;
+		int len = end - start;
+		players[i]->nickName = malloc(sizeof(len));
+		memcpy(players[i]->nickName, &from[start], len);
+		gotoxy(XSIZE + 10 + i, 1);
+		puts(players[i]->nickName);
+		start = end;
+	}
+	return players;
 }
 
-void viewGameBoard(SOCKET* connectionSocket)
+
+DWORD WINAPI  viewGameBoard(void* socket)
 {
+	SOCKET* connectionSocket = (SOCKET*)socket;
 	hidecursor();
 	char buf[XSIZE+1]; //buffor to read msgs
 	buf[XSIZE] = '\0';
-	int y = 0;
+	int count, y = 0;
+	char nicks[NICKS_LEN];
+	recv(*connectionSocket, nicks, sizeof(nicks), 0);
+	PlayerShowData ** players = getNamedPlayers(nicks, &count);
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
 	while (WaitForSingleObject(ghPlayerQuitEvent, 1) == WAIT_TIMEOUT) {
 		if (recv(*connectionSocket, buf, XSIZE, 0) > 0)
@@ -22,14 +44,21 @@ void viewGameBoard(SOCKET* connectionSocket)
 			if (strcmp(buf, "KONIEC") == 0)
 			{
 				SetEvent(ghGameEndedEvent);
-				return;
+				return 0;
 			}
 			gotoxy(1, y);
 			puts( buf);
 			y = (y + 1) % YSIZE;
 		}
 	}
-	return;
+	//free other players informations
+	for (int i = 0; i < count; i++)
+	{
+		free(players[i]->nickName);
+		free(players[i]);
+	}
+	free(players);
+	return 0;
 }
 
 DWORD WINAPI gameLoop(void * data)
@@ -41,12 +70,14 @@ DWORD WINAPI gameLoop(void * data)
 
 	int gameStatus = ON;
 	int count = gameData->count;
+
 	for (int i = 0; i < count; i++)
 	{
 		players[i] = gameData->players[i]->data;
 		players[i]->alive = TRUE;
-		players[i]->lastMove = NULL;
+		players[i]->lastMove = '\0';
 	}
+
 
 	char board[YSIZE][XSIZE];
 	char c;
@@ -63,7 +94,7 @@ DWORD WINAPI gameLoop(void * data)
 			c = players[i]->lastMove;				//Pobranie ruchu kazdego gracza
 			UNLOCK(&players[i]->playerSemaphore);
 			//KONIEC
-
+			ResetEvent(ghPlayersReceivedEvent[i]);
 			//translacja wê¿a o ruch c
 		}
 
@@ -86,7 +117,9 @@ DWORD WINAPI gameLoop(void * data)
 		toggle = !toggle;
 		if (t-- == 0)
 			break;
-		Sleep(400);
+		Sleep(10);
+		//czekaj az wszyscy gracze odbiora stan gry
+		WaitForMultipleObjects(count, ghPlayersReceivedEvent, 1, INFINITE);
 	}
 
 	free(players);

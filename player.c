@@ -33,7 +33,7 @@ int startPlayerThreads(int* PORT,char * ADDRESS, _Bool isHost) {
 	runThread(&sendClientInputHandle, sendClientInput, &clientSocket);
 
 	//Stworzenie watku pobierajacego dane z serwera i wyswietlajacego go
-	runThread(&gameViewerHandle, viewGame, &clientSocket);
+	runThread(&gameViewerHandle, viewGameBoard, &clientSocket);
 	if (gameViewerHandle == INVALID_HANDLE_VALUE)
 	{
 		SetEvent(ghStopEvent);
@@ -88,6 +88,8 @@ _Bool connectToServer(SOCKET * clientSocket, struct sockaddr_in  * sa, int * POR
 DWORD WINAPI sendClientInput(void * clientSocket)
 {
 	SOCKET* socket = clientSocket;
+	char nick[] = "Mikas";
+	send(*socket, nick, sizeof(nick), 0);
 	char c;
 	//If event was called than stop sending messages.
 	while (WaitForSingleObject(ghGameEndedEvent, 1) == WAIT_TIMEOUT)

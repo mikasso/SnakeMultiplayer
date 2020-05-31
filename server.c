@@ -11,6 +11,14 @@ void displayStartInfo() {
 	system("CLS");
 }
 
+void showPlayerInfo(PlayerServerInfo* player) {
+	struct sockaddr_in* name = malloc(sizeof(struct sockaddr_in));
+	int sizeSockAddr = sizeof(struct sockaddr);
+	getpeername(*player->socket, (struct sockaddr*) name, &sizeSockAddr);
+	printf("Connected with player IP: %s \t ID: %d \n", inet_ntoa(name->sin_addr), player->data->ID);
+	free(name);
+}
+
 HANDLE * startServer(int * PORT, int maxPlayers) {
 	HANDLE * thread = malloc(sizeof(thread));
 	//Creating server init information
@@ -35,7 +43,6 @@ HANDLE * startServer(int * PORT, int maxPlayers) {
 	return *thread;
 }
 
-
 DWORD WINAPI serverThread(void * data)
 {
 	//Unpack data and prepare to work
@@ -55,6 +62,7 @@ DWORD WINAPI serverThread(void * data)
 			players[i] = initPlayerServerInfo();
 			players[i]->data->ID = i;
 			players[i]->status = CONNECTED;
+			players[i]->othersServerInfo = players;
 			lenc = sizeof(*players[i]->sockAddr);
 			*players[i]->socket = accept(serverData->socket, (struct sockaddr FAR*) players[i]->sockAddr, &lenc);
 			connected++;
@@ -67,11 +75,23 @@ DWORD WINAPI serverThread(void * data)
 		printf("Socket error %d \n" ,result);
 		Sleep(1000);
 	}
+	for(int i=0;i<connected;i++)
+		players[i]->count = connected;
 	//Prepare players to start the game
 	displayStartInfo();
 	//Start all player threads
-	HANDLE * sendingDataThreads = startSendingThreads(players, connected);
+	nickNamesReceived = malloc(sizeof(HANDLE) * connected);
+	ghPlayersReceivedEvent = malloc(sizeof(HANDLE) * connected);
+	for (int i = 0; i < connected; i++)
+	{
+		nickNamesReceived[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
+		ghPlayersReceivedEvent[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
+	}
 	HANDLE * receivingDataThreads = startReceivingThreads(players, connected);
+
+	WaitForMultipleObjects(connected, nickNamesReceived, 1, INFINITE);
+
+	HANDLE* sendingDataThreads = startSendingThreads(players, connected);
 	HANDLE gameLoopThread = NULL;
 	GameData gameData;
 	gameData.players = players;
@@ -82,7 +102,6 @@ DWORD WINAPI serverThread(void * data)
 		Watek ten powinien w magiczny sposob odczytywac dane ktore sa odbierane w watkach 
 		receiveDataFromPlayer oraz udostepniac je watka sendingDataToPlayer
 	*/
-
 	//Wait them to finish
 	WaitForSingleObject(gameLoopThread, INFINITE);
 	WaitForMultipleObjects(connected, sendingDataThreads, 1, INFINITE);
@@ -95,14 +114,6 @@ DWORD WINAPI serverThread(void * data)
 	}
 	printf("Turning off server.");
 	return 0;
-}
-
-void showPlayerInfo(PlayerServerInfo * player) {
-	struct sockaddr_in* name = malloc(sizeof(struct sockaddr_in));
-	int sizeSockAddr = sizeof(struct sockaddr);
-	getpeername(*player->socket,(struct sockaddr *) name, &sizeSockAddr);
-	printf("Connected with player IP: %s \t ID: %d \n", inet_ntoa(name->sin_addr),player->data->ID);
-	free(name);
 }
 
 HANDLE * startReceivingThreads(PlayerServerInfo ** players, int connected)
@@ -141,10 +152,18 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 {
 	PlayerServerInfo * playerServerData = (PlayerServerInfo *) data;
 	PlayerData * playerData = playerServerData->data;
-	char c; //buffor to read msgs
+	char c,buf[20];
+	int len, code, result;
+	//Read nicknames of each player
+	result = recv(*playerServerData->socket, buf, sizeof(buf), 0);
+	len = strlen(buf)+1;
+	playerData->nickName = malloc(len);
+	memcpy(playerData->nickName, buf,len);
+	SetEvent(nickNamesReceived[playerData->ID]);
+	//non blokcing socket 
+	result = 1;
 	u_long mode = 1;  // 1 to enable non-blocking socket
 	ioctlsocket(*playerServerData->socket, FIONBIO, &mode);
-	int result = 1 , code;
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
 	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && ( WSAGetLastError() == WSAEWOULDBLOCK || result > 0) ) {
 		result = recv(*playerServerData->socket, &c, sizeof(c), 0);
@@ -160,13 +179,10 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 				//Stop loop
 				break;
 			}
-			//Redirect recieved data to gameLoop TODO
-			//gotoxy(1, 3);
 			//printf("server received from player ID = %d key %c", playerData->ID, c);
-			//Jakos przeslijcie te dane to watku gry
 		}
 	}
-	gotoxy(1, 20);
+	gotoxy(1, YSIZE+5);
 	printf("Player %d disconnected \n", playerData->ID);
 	playerServerData->status = DISCONNECTED;
 	return 0;
@@ -174,29 +190,49 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 
 DWORD WINAPI sendingDataToPlayer(void * data)
 {
-	PlayerServerInfo* playerServerData = (PlayerServerInfo*) data;
-	PlayerData* playerData = playerServerData->data;
-	SOCKET * connectionToPlayer = playerServerData->socket;
-	int dlug;
-	char buf[BOARD_SIZE];
-	_Bool ping = 1;
+	PlayerServerInfo* playerServerData = (PlayerServerInfo*) data;			//informacje o graczu dla ktorego dedydkowane jest ten watek
+	PlayerData* playerData = playerServerData->data;						// to samo co u gory tylko wypakowane
+	//PlayerShowData temp;													// struktura do wypelniania do przesylu zapakowanych danych
+	PlayerServerInfo ** others = playerServerData->othersServerInfo;		// tablica informacji o innych graczach
+	SOCKET * connectionToPlayer = playerServerData->socket;			
+	char buf[BOARD_SIZE], nicksInfo[NICKS_LEN], * nick = NULL;						// tablica na bufor nicki wszystkich graczy i wskaznik na konkrertny
+	nicksInfo[0] =(int) playerServerData->count;
+	int len,ptr = sizeof(playerServerData->count);
+	for (int i = 0; i < playerServerData->count; i++)
+	{
+		nick = others[i]->data->nickName;
+		len = strlen(nick) + 1;
+		memcpy(&nicksInfo[ptr], nick, len);
+		ptr += len;
+	}
+	send(*connectionToPlayer, nicksInfo, sizeof(nicksInfo), 0);
+	
 	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED)
 	{
-		Sleep(100);
+
 		//SYNCHRONIZACJA
 		LOCK(&ghBoardSemaphore);
-		if (TRUE)	
+		if (TRUE)
 			memcpy(buf, BOARD, BOARD_SIZE);
 		UNLOCK(&ghBoardSemaphore);
 		//KONIEC
-
-			send(*connectionToPlayer, buf, BOARD_SIZE, 0);
-			if (strcmp(buf, "KONIEC") == 0)
-			{
-				break;
-			}
-	
+		send(*connectionToPlayer, buf, BOARD_SIZE, 0);
+		if (strcmp(buf, "KONIEC") == 0)
+		{
+			break;
+		}
+		//To nie jest krytyczna sciezka kodu informacja moze byc momentami lekko przedawniona
+		/*for (int i = 0; i < playerServerData->count; i++)
+		{
+			temp.alive = others[i]->data->alive;
+			temp.ID = others[i]->data->ID;
+			temp.score = others[i]->data->score;
+			send(*connectionToPlayer, playerServerData->count, sizeof(PlayerShowData), 0);
+		}*/
+		//POINFORMUJ ZE WYSLALES DANE DO GRACZA
+		SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 	}
+	CloseHandle(nickNamesReceived[playerData->ID]);
 	return 0;
 }
 
@@ -208,6 +244,7 @@ PlayerServerInfo* initPlayerServerInfo()
 	info->receivingThread = malloc(sizeof(HANDLE));
 	info->sendingThread = malloc(sizeof(HANDLE));
 	info->data = malloc(sizeof(PlayerData));
+	info->data->nickName = NULL;
 	BINARY_SEMAPHORE(&info->data->playerSemaphore);
 	info->sockAddr = malloc(sizeof(struct sockaddr_in));
 	return info;
@@ -218,6 +255,8 @@ void freePlayerServerInfo(PlayerServerInfo* info)
 	closesocket(*info->socket);
 	free(info->sockAddr);
 	CloseHandle(info->data->playerSemaphore);
+	if (info->data->nickName != NULL)
+		free(info->data->nickName);
 	free(info->data);
 	free(info->socket);
 	free(info);

@@ -7,22 +7,34 @@ extern HANDLE ghGameEndedEvent;
 extern HANDLE ghStopEvent;
 extern HANDLE ghPlayerQuitEvent;
 extern HANDLE ghBoardSemaphore;
+
+HANDLE* ghPlayersReceivedEvent;
+HANDLE * nickNamesReceived;
 #define CONNECTED 1
 #define DISCONNECTED -1
 
-extern char BOARD[YSIZE][XSIZE];
 // Player Handling
 struct PlayerData {	//Ta struktura jest do petli w grze
 	int ID;				//Id gracza 
-	char* nickName;		//jego nickname opcjonalnie moge to zaimplementowac 
+	char * nickName;		//jego nickname opcjonalnie moge to zaimplementowac 
 	char lastMove;		//ostatni ruch gracza TO POWINNA BYC JAKAS KOLEJKA WLASCIWIE
 	_Bool alive;
 	_Bool connected;
+	int score;
 	HANDLE playerSemaphore;
 }typedef PlayerData;
 
+struct PlayerShowData {
+	int ID;
+	char * nickName;
+	int score;
+	_Bool alive;
+}typedef PlayerShowData;
+
 struct PlayerServerInfo {//Ta natomiast do obslugiwania gracza przez serwer
 	PlayerData * data;
+	int count;								//liczba graczy
+	struct PlayerServerInfo ** othersServerInfo;	//informacje o nich
 	SOCKET * socket;
 	HANDLE * receivingThread;
 	HANDLE * sendingThread;
