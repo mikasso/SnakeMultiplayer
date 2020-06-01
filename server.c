@@ -107,6 +107,7 @@ DWORD WINAPI serverThread(void * data)
 	//End thread job
 	for (int i = 0; i < connected; i++)
 	{
+		CloseHandle(nickNamesReceived[i]);
 		CloseHandle(sendingDataThreads[i]); 
 		CloseHandle(receivingDataThreads[i]);
 		freePlayerServerInfo(players[i]);
@@ -205,7 +206,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 		memcpy(&nicksInfo[ptr], nick, len);
 		ptr += len;
 	}
-	send(*connectionToPlayer, nicksInfo, sizeof(nicksInfo), 0);
+	int result = send(*connectionToPlayer, nicksInfo, sizeof(nicksInfo), 0);
 	
 	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED )
 	{
@@ -216,7 +217,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 			int ptr = 0;
 			for (int i = 0; i < count; i++)
 			{
-				LOCK(&others[i]->data->playerSemaphore);
+				//LOCK(&others[i]->data->playerSemaphore);
 				buf[ptr++] = (char)others[i]->data->ID;
 				if (others[i]->data->ID < 0)
 				{
@@ -236,7 +237,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 						buf[ptr++] = (char)others[i]->data->y[j];
 					}
 				}
-				UNLOCK(&others[i]->data->playerSemaphore);
+				//UNLOCK(&others[i]->data->playerSemaphore);
 			}
 			for (int i = 0; i < APPLES; i++)
 			{
@@ -244,15 +245,12 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 				buf[ptr++] = (char)gApples[i].x;
 				buf[ptr++] = (char)gApples[i].y;
 			}
-			send(*connectionToPlayer, buf, ptr, 0);
-			if (strcmp(buf, "KONIEC") == 0)
-			{
+			result = send(*connectionToPlayer, buf, ptr, 0);
+			if (result == 0)
 				break;
-			}
 			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
-		
 	}
-	CloseHandle(nickNamesReceived[playerData->ID]);
+	SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 	closesocket(*connectionToPlayer);
 	return 0;
 }

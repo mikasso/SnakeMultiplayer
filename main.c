@@ -49,8 +49,8 @@ int main(int argc, char* argv[])
 	SetEvent(ghStopEvent);
 	if (isHost)
 	{
-		free(serverData);
 		printf("\n%d",WaitForSingleObject(server, INFINITE));
+		free(serverData);
 		CloseHandle(server);
 	}
 	CloseHandle(ghStopEvent);

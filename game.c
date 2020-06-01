@@ -53,7 +53,7 @@ void drawSnake(PlayerData* p, HANDLE * hConsole,char * nick)
 	puts(nick);
 	puts(txt);
 	gotoxy(XSIZE +6+ strlen(nick), 5+ p->ID);
-	_itoa(p->score, txt, 10);
+	_itoa_s(p->score, txt,5, 10);
 	puts(txt);
 	//puts(p->score);
 }
@@ -293,9 +293,9 @@ DWORD WINAPI gameLoop(void * data)
 		int alives = 0;
 		for (int i = 0; i < count; i++)
 		{
-			if (players[i]->alive) 
+			if (players[i]->alive && gameData->players[i]->status == CONNECTED)
 			{
-				alives++;
+					alives++;
 					LOCK(&players[i]->playerSemaphore);
 					c = players[i]->lastMove;
 					translate(players[i], c);
@@ -304,10 +304,12 @@ DWORD WINAPI gameLoop(void * data)
 			ResetEvent(ghPlayersReceivedEvent[i]);
 			//translacja wê¿a o ruch c
 		}
+		
+		SetEvent(ghLoopDone);
 		if (WaitForSingleObject(ghStopEvent, 1) == WAIT_OBJECT_0 || alives <= 0) {
 			gameStatus = OFF;
+			break;
 		}
-		SetEvent(ghLoopDone);
 		//czekaj az wszystkim wyslesz stan gry
 		WaitForMultipleObjects(count, ghPlayersReceivedEvent, 1, INFINITE);	
 		end = clock() - start;
@@ -323,8 +325,8 @@ DWORD WINAPI gameLoop(void * data)
 void gotoxy(int x, int y)
 {
 	COORD c;
-	c.X = x + 10;
-	c.Y = y + 10;
+	c.X = x + 1;
+	c.Y = y + 1;
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), c);
 }
 
