@@ -20,7 +20,7 @@ _Bool runThread(HANDLE * handler,ThreadFunc fun, void * data)
 	return TRUE;
 }
 
-int startPlayerThreads(int* PORT,char * ADDRESS, _Bool isHost) {
+int startPlayerThreads(int* PORT,char * ADDRESS,char * nick, _Bool isHost) {
 	HANDLE sendClientInputHandle,  gameViewerHandle;
 	ghPlayerQuitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	ghGameEndedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -30,7 +30,10 @@ int startPlayerThreads(int* PORT,char * ADDRESS, _Bool isHost) {
 		return -1;
 
 	//Stworzenie watku odpowiedzialnego za pobieranie danych z klawiatury i wysylyania ich 
-	runThread(&sendClientInputHandle, sendClientInput, &clientSocket);
+	SendData data;
+	data.nick = nick;
+	data.socket = clientSocket;
+	runThread(&sendClientInputHandle, sendClientInput, &data);
 
 	//Stworzenie watku pobierajacego dane z serwera i wyswietlajacego go
 	runThread(&gameViewerHandle, viewGameBoard, &clientSocket);
@@ -85,11 +88,11 @@ _Bool connectToServer(SOCKET * clientSocket, struct sockaddr_in  * sa, int * POR
 }
 
 
-DWORD WINAPI sendClientInput(void * clientSocket)
+DWORD WINAPI sendClientInput(void * data)
 {
-	SOCKET* socket = clientSocket;
-	char nick[] = "Mikas";
-	send(*socket, nick, sizeof(nick), 0);
+	SendData * sendData = (SendData*)data;
+	SOCKET socket = sendData->socket;
+	send(socket, sendData->nick, strlen(sendData->nick)+1, 0);
 	char c;
 	//If event was called than stop sending messages.
 	while (WaitForSingleObject(ghGameEndedEvent, 1) == WAIT_TIMEOUT)
@@ -100,7 +103,7 @@ DWORD WINAPI sendClientInput(void * clientSocket)
 			SetEvent(ghPlayerQuitEvent);
 			break;
 		}
-		send(*socket, &c, sizeof(c), 0);
+		send(socket, &c, sizeof(c), 0);
 	}
 	return 0;
 }

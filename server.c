@@ -46,6 +46,7 @@ HANDLE * startServer(int * PORT, int maxPlayers) {
 DWORD WINAPI serverThread(void * data)
 {
 	//Unpack data and prepare to work
+
 	ServerBasicData * serverData = data;
 	int connected = 0;
 	int maxPlayers = serverData->maxPlayers;
@@ -91,18 +92,15 @@ DWORD WINAPI serverThread(void * data)
 
 	WaitForMultipleObjects(connected, nickNamesReceived, 1, INFINITE);
 
-	HANDLE* sendingDataThreads = startSendingThreads(players, connected);
 	HANDLE gameLoopThread = NULL;
 	GameData gameData;
 	gameData.players = players;
 	gameData.count = connected;
+	ghGameReady = CreateEvent(NULL, TRUE, FALSE, NULL);
 	runThread(&gameLoopThread, &gameLoop, &gameData);
-	/*
-		Teraz tak w tym miejscu powinno byc odpalenie watku zawierajacego petle gry
-		Watek ten powinien w magiczny sposob odczytywac dane ktore sa odbierane w watkach 
-		receiveDataFromPlayer oraz udostepniac je watka sendingDataToPlayer
-	*/
-	//Wait them to finish
+	WaitForSingleObject(ghGameReady, INFINITE);
+	HANDLE* sendingDataThreads = startSendingThreads(players, connected);
+	
 	WaitForSingleObject(gameLoopThread, INFINITE);
 	WaitForMultipleObjects(connected, sendingDataThreads, 1, INFINITE);
 	WaitForMultipleObjects(connected, receivingDataThreads, 1, INFINITE);
@@ -195,8 +193,9 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 	//PlayerShowData temp;													// struktura do wypelniania do przesylu zapakowanych danych
 	PlayerServerInfo ** others = playerServerData->othersServerInfo;		// tablica informacji o innych graczach
 	SOCKET * connectionToPlayer = playerServerData->socket;			
-	char buf[BOARD_SIZE], nicksInfo[NICKS_LEN], * nick = NULL;						// tablica na bufor nicki wszystkich graczy i wskaznik na konkrertny
-	nicksInfo[0] =(int) playerServerData->count;
+	char buf[4000], nicksInfo[NICKS_LEN], * nick = NULL;						// tablica na bufor nicki wszystkich graczy i wskaznik na konkrertny
+	int count = playerServerData->count;
+	nicksInfo[0] =(int)count;
 	int len,ptr = sizeof(playerServerData->count);
 	for (int i = 0; i < playerServerData->count; i++)
 	{
@@ -207,30 +206,56 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 	}
 	send(*connectionToPlayer, nicksInfo, sizeof(nicksInfo), 0);
 	
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED)
+	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && playerServerData->status == CONNECTED )
 	{
-
+		WaitForSingleObject(ghLoopDone, INFINITE);
 		//SYNCHRONIZACJA
-		LOCK(&ghBoardSemaphore);
-		if (TRUE)
-			memcpy(buf, BOARD, BOARD_SIZE);
-		UNLOCK(&ghBoardSemaphore);
-		//KONIEC
-		send(*connectionToPlayer, buf, BOARD_SIZE, 0);
-		if (strcmp(buf, "KONIEC") == 0)
+		if (gameStatus == OFF)
 		{
+			memcpy(buf, "KONIEC", 7);
+			send(*connectionToPlayer, buf, strlen(buf)+1, 0);
+			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 			break;
 		}
-		//To nie jest krytyczna sciezka kodu informacja moze byc momentami lekko przedawniona
-		/*for (int i = 0; i < playerServerData->count; i++)
-		{
-			temp.alive = others[i]->data->alive;
-			temp.ID = others[i]->data->ID;
-			temp.score = others[i]->data->score;
-			send(*connectionToPlayer, playerServerData->count, sizeof(PlayerShowData), 0);
-		}*/
-		//POINFORMUJ ZE WYSLALES DANE DO GRACZA
-		SetEvent(ghPlayersReceivedEvent[playerData->ID]);
+		else {
+			int ptr = 0;
+			for (int i = 0; i < count; i++)
+			{
+				LOCK(&others[i]->data->playerSemaphore);
+				buf[ptr++] = (char)others[i]->data->ID;
+				if (others[i]->data->ID < 0)
+				{
+					int c = 4;
+					c++;
+				}
+				buf[ptr++] = (char)others[i]->data->color;
+				buf[ptr++] = (char)others[i]->data->score;
+				buf[ptr++] = (char)others[i]->data->alive;
+				if (others[i]->data->alive == TRUE)
+				{
+
+					buf[ptr++] = (char)others[i]->data->size;
+					for (int j = 0; j < others[i]->data->size; j++)
+					{
+						buf[ptr++] = (char)others[i]->data->x[j];
+						buf[ptr++] = (char)others[i]->data->y[j];
+					}
+				}
+				UNLOCK(&others[i]->data->playerSemaphore);
+			}
+			for (int i = 0; i < APPLES; i++)
+			{
+				buf[ptr++] = (char)gApples[i].alive;
+				buf[ptr++] = (char)gApples[i].x;
+				buf[ptr++] = (char)gApples[i].y;
+			}
+			send(*connectionToPlayer, buf, ptr, 0);
+			if (strcmp(buf, "KONIEC") == 0)
+			{
+				break;
+			}
+			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
+		}
 	}
 	CloseHandle(nickNamesReceived[playerData->ID]);
 	return 0;

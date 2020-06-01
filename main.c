@@ -13,6 +13,7 @@ int main(int argc, char* argv[])
 
 	//Read data from command line
 	char * ADRESS = "192.168.1.2";
+	char* nick = "Mikas";
 	int maxPlayers = 1;
 	int PORT = 5037;
 	_Bool isHost = TRUE;
@@ -41,7 +42,7 @@ int main(int argc, char* argv[])
 
 	//Get server data from input scanf(..)
 	//TODO
-	if (startPlayerThreads(&PORT, ADRESS, isHost) < 0)
+	if (startPlayerThreads(&PORT, ADRESS, nick, isHost) < 0)
 	{
 		printf("Client cannot reach server! \n");
 	}

@@ -7,11 +7,14 @@ extern HANDLE ghGameEndedEvent;
 extern HANDLE ghStopEvent;
 extern HANDLE ghPlayerQuitEvent;
 extern HANDLE ghBoardSemaphore;
-
+extern HANDLE ghLoopDone;
+extern HANDLE ghGameReady;
+extern _Bool gameStatus;
 HANDLE* ghPlayersReceivedEvent;
 HANDLE * nickNamesReceived;
 #define CONNECTED 1
 #define DISCONNECTED -1
+#define MAX_LEN 100
 
 // Player Handling
 struct PlayerData {	//Ta struktura jest do petli w grze
@@ -21,6 +24,9 @@ struct PlayerData {	//Ta struktura jest do petli w grze
 	_Bool alive;
 	_Bool connected;
 	int score;
+	int x[MAX_LEN], y[MAX_LEN];
+	int size;
+	char color;
 	HANDLE playerSemaphore;
 }typedef PlayerData;
 
