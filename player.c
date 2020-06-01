@@ -103,7 +103,11 @@ DWORD WINAPI sendClientInput(void * data)
 			SetEvent(ghPlayerQuitEvent);
 			break;
 		}
-		send(socket, &c, sizeof(c), 0);
+		int result = send(socket, &c, sizeof(c), 0);
+		if (result == 0)
+			break;
 	}
+	SetEvent(ghPlayerQuitEvent);
+	CloseHandle(ghGameEndedEvent);
 	return 0;
 }

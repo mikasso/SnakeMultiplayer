@@ -15,6 +15,8 @@ HANDLE * nickNamesReceived;
 #define CONNECTED 1
 #define DISCONNECTED -1
 #define MAX_LEN 100
+#define END_CODE "END"
+#define CONTINUE_CODE "CON"
 
 // Player Handling
 struct PlayerData {	//Ta struktura jest do petli w grze

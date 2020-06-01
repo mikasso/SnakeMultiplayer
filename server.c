@@ -105,11 +105,13 @@ DWORD WINAPI serverThread(void * data)
 	WaitForMultipleObjects(connected, sendingDataThreads, 1, INFINITE);
 	WaitForMultipleObjects(connected, receivingDataThreads, 1, INFINITE);
 	//End thread job
-	SetEvent(ghStopEvent);
 	for (int i = 0; i < connected; i++)
 	{
+		CloseHandle(sendingDataThreads[i]); 
+		CloseHandle(receivingDataThreads[i]);
 		freePlayerServerInfo(players[i]);
 	}
+	CloseHandle(gameLoopThread);
 	printf("Turning off server.");
 	return 0;
 }
@@ -159,11 +161,9 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 	memcpy(playerData->nickName, buf,len);
 	SetEvent(nickNamesReceived[playerData->ID]);
 	//non blokcing socket 
-	result = 1;
-	u_long mode = 1;  // 1 to enable non-blocking socket
-	ioctlsocket(*playerServerData->socket, FIONBIO, &mode);
+
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
-	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT && ( WSAGetLastError() == WSAEWOULDBLOCK || result > 0) ) {
+	while (WaitForSingleObject(ghStopEvent, 1) == WAIT_TIMEOUT ) {
 		result = recv(*playerServerData->socket, &c, sizeof(c), 0);
 		if(result > 0)
 		{
@@ -178,7 +178,8 @@ DWORD WINAPI receiveDataFromPlayer(void * data)
 				break;
 			}
 			//printf("server received from player ID = %d key %c", playerData->ID, c);
-		}
+		}else
+			break;
 	}
 	gotoxy(1, YSIZE+5);
 	printf("Player %d disconnected \n", playerData->ID);
@@ -211,13 +212,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 		WaitForSingleObject(ghLoopDone, INFINITE);
 		//SYNCHRONIZACJA
 		if (gameStatus == OFF)
-		{
-			memcpy(buf, "KONIEC", 7);
-			send(*connectionToPlayer, buf, strlen(buf)+1, 0);
-			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 			break;
-		}
-		else {
 			int ptr = 0;
 			for (int i = 0; i < count; i++)
 			{
@@ -255,9 +250,10 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 				break;
 			}
 			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
-		}
+		
 	}
 	CloseHandle(nickNamesReceived[playerData->ID]);
+	closesocket(*connectionToPlayer);
 	return 0;
 }
 

@@ -118,7 +118,7 @@ void translate(PlayerData * p,char c)
 	}
 	if (vector == 0)
 		return;
-
+	BOARD[p->y[0]][p->x[0]] = ' ';
 	values[0] += vector;
 	_Bool add = FALSE;
 	//Zjedz jablko
@@ -139,14 +139,14 @@ void translate(PlayerData * p,char c)
 				p->x[p->size] = p->x[p->size - 1];
 			}
 		}
+		BOARD[p->y[0]][p->x[0]] = ' ';
 		p->size++, p->score++;
 		add = TRUE;
 	}
-	//sprawdz czy nie wypadl za mape
-	BOARD[p->y[0]][p->x[0]] = (char)p->ID;
-	if (outOfMap(p)==TRUE)
-	{
+	if (outOfMap(p) || BOARD[p->y[0]][p->x[0]] != ' ')
 		p->alive = FALSE;
+	if (p->alive==FALSE)
+	{
 		for (int i = 0; i < p->size; i++)
 		{
 			BOARD[p->y[i]][p->x[i]] = ' ';
@@ -159,9 +159,10 @@ void translate(PlayerData * p,char c)
 		BOARD[p->y[i]][p->x[i]] = ' ';
 		p->x[i] = p->x[i - 1];
 		p->y[i] = p->y[i - 1];
-		BOARD[p->y[i]][p->x[i]] = (char) p->ID;
 	}
 	values[0] += vector;
+	for (int i = 0; i < p->size; i++)
+		BOARD[p->y[i]][p->x[i]] = (char)p->ID;
 }
 
 DWORD WINAPI  viewGameBoard(void* socket)
@@ -185,16 +186,13 @@ DWORD WINAPI  viewGameBoard(void* socket)
 	//If event was called than stop receiving msgs. Wait for it 1 milisecond.
 	PlayerData p;
 	Apple a;
+	int result;
 	while (WaitForSingleObject(ghPlayerQuitEvent, 1) == WAIT_TIMEOUT) {
-		if (recv(*connectionSocket, buf, 4000, 0) > 0)
+		result = recv(*connectionSocket, buf, 4000, 0);
+		if (result > 0)
 		{
-			if (strcmp(buf, "KONIEC") == 0)
-			{
-				SetEvent(ghGameEndedEvent);
-				break;
-			}
 			for (int i = 0; i < YSIZE; i++) {
-				gotoxy(1, i+1);
+				gotoxy(1, i + 1);
 				puts(boardLine);
 			}
 			drawBorders();
@@ -211,11 +209,11 @@ DWORD WINAPI  viewGameBoard(void* socket)
 					p.size = (char)buf[ptr++];
 					for (int i = 0; i < p.size; i++)
 					{
-						p.x[i] =(char) buf[ptr++];
+						p.x[i] = (char)buf[ptr++];
 						p.y[i] = (char)buf[ptr++];
 					}
 				}
-				drawSnake(&p,&hConsole,players[p.ID]->nickName);
+				drawSnake(&p, &hConsole, players[p.ID]->nickName);
 			}
 			for (int i = 0; i < APPLES; i++)
 			{
@@ -227,6 +225,8 @@ DWORD WINAPI  viewGameBoard(void* socket)
 			}
 			Sleep(100);
 		}
+		else
+			break;
 	}
 	//free other players informations
 	for (int i = 0; i < count; i++)
@@ -234,7 +234,8 @@ DWORD WINAPI  viewGameBoard(void* socket)
 		//free(players[i]->nickName);
 		free(players[i]);
 	}
-	close(hConsole);
+	SetEvent(ghGameEndedEvent);
+	CloseHandle(hConsole);
 	free(players);
 	return 0;
 }
@@ -268,11 +269,10 @@ DWORD WINAPI gameLoop(void * data)
 		gApples[i].alive = FALSE;
 		gApples[i].ID = i;
 	}
-	char board[YSIZE][XSIZE];
 	char c;
 	int t = 0;
 	_Bool toggle = FALSE;
-	memset(board, ' ', BOARD_SIZE * sizeof(char));
+	memset(BOARD, ' ', BOARD_SIZE * sizeof(char));
 	SetEvent(ghGameReady);
 	gameStatus = ON;
 	while (gameStatus == ON)
@@ -317,7 +317,6 @@ DWORD WINAPI gameLoop(void * data)
 	free(players);
 	CloseHandle(ghGameReady);
 	CloseHandle(ghBoardSemaphore);
-	SetEvent(ghGameEndedEvent);
 	return 0;
 }
 
