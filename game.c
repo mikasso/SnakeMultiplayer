@@ -1,5 +1,5 @@
 #include "game.h"
-#define MINTIME 200
+#define MINTIME 1000
 
 void drawBorders() {
 	for (int i = 0; i < YSIZE; i++)

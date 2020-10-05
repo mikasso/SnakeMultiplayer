@@ -250,6 +250,7 @@ DWORD WINAPI sendingDataToPlayer(void * data)
 				break;
 			SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 	}
+	SetEvent(ghPlayerQuitEvent);
 	SetEvent(ghPlayersReceivedEvent[playerData->ID]);
 	closesocket(*connectionToPlayer);
 	return 0;
